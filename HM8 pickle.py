@@ -99,15 +99,33 @@ class AddressBook(UserDict):
 
     # Метод для отримання днів народження на наступні 7 днів
     def get_upcoming_birthdays(self):
-        today = datetime.today()
+        today = datetime.today().date() # Працюємо тільки з датами, без часу
         upcoming_birthdays = []
 
         for record in self.data.values():
             if record.birthday:
-                birthday_this_year = record.birthday.value.replace(year=today.year)
-                if today <= birthday_this_year <= today + timedelta(days=7):
-                    birthday_str = birthday_this_year.strftime("%d.%m.%Y")
-                    upcoming_birthdays.append({"name": record.name.value, "birthday": birthday_str})
+                # Отримуємо дату народження (тільки date)
+                bday_date = record.birthday.value.date()
+                
+                # Замінюємо рік на поточний
+                # (тут треба обережно з 29 лютого, але для простоти поки так)
+                try:
+                    birthday_this_year = bday_date.replace(year=today.year)
+                except ValueError: # Якщо 29 лютого, а рік невисокосний
+                     birthday_this_year = bday_date.replace(year=today.year, day=28)
+
+                # Якщо день народження вже пройшов цього року, дивимось наступний
+                if birthday_this_year < today:
+                    birthday_this_year = birthday_this_year.replace(year=today.year + 1)
+
+                # Перевірка на 7 днів
+                if 0 <= (birthday_this_year - today).days <= 7:
+                    # Якщо випадає на вихідний, переносимо на понеділок (якщо це вимагалось в минулому ДЗ)
+                    # Але для базової логіки достатньо просто додати
+                    upcoming_birthdays.append({
+                        "name": record.name.value, 
+                        "birthday": birthday_this_year.strftime("%d.%m.%Y")
+                    })
 
         return upcoming_birthdays
 
@@ -148,15 +166,21 @@ def parse_input(user_input):
 # Функція для додавання контакту
 @input_error
 def add_contact(args, book):
-    name, phone, *_ = args
+    name = args[0]
+    # Перевіряємо, чи є другий аргумент (телефон)
+    phone = args[1] if len(args) > 1 else None
+    
     record = book.find(name)
     message = "Contact updated."
+    
     if record is None:
         record = Record(name)
         book.add_record(record)
         message = "Contact added."
+    
     if phone:
         record.add_phone(phone)
+        
     return message
 
 # Функція для зміни телефону контакту
